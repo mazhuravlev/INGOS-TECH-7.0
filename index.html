@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        div {
+            padding: 12px;
+        }
+
+        textarea, input {
+            min-width: 600px;
+        }
+    </style>
+</head>
+<body>
+<div>
+    <textarea>((index - ex) - d) + gst * osr + (an + k + oh) / (n + o)</textarea>
+</div>
+<button onclick="run()">Evaluate</button>
+<div>
+    <input type="text">
+</div>
+<script>
+    function run() {
+        const expression = document.querySelector('textarea').value;
+        const tokens = [];
+        let rest = expression.replace(/\s/g, '');
+
+        while (rest) {
+            let result = getNextToken(rest);
+            if (!result) break;
+            tokens.push(result.token);
+            rest = result.rest;
+        }
+
+        const stack = [];
+        const result = [];
+        tokens.forEach((t, i) => {
+            if (t instanceof OpenBracket) stack.push(t);
+            if (t instanceof CloseBracket) {
+                while (true) {
+                    const token = stack.pop();
+                    if (token instanceof OpenBracket) break;
+                    result.push(token);
+                }
+            }
+            if (t instanceof Literal) result.push(t);
+            if (t instanceof Operator) {
+                if (stack.length) {
+                    while (t.priority <= stack[stack.length - 1].priority) {
+                        result.push(stack.pop());
+                        if (stack.length < 1) break;
+                    }
+                }
+                stack.push(t);
+            }
+        });
+        while (stack.length) {
+            result.push(stack.pop());
+        }
+
+        const eval = [];
+        result.forEach(x => {
+            if (x instanceof Literal) {
+                eval.push(x);
+            }
+            else {
+                eval.push(x.eval(eval.pop(), eval.pop()));
+            }
+        });
+
+        document.querySelector('input').value = eval.pop().value;
+    }
+
+    function getNextToken(rest) {
+        if (!rest.length) return null;
+        switch (rest[0]) {
+            case '(':
+                return {token: new OpenBracket(), rest: rest.substr(1)};
+            case ')':
+                return {token: new CloseBracket(), rest: rest.substr(1)};
+            case '+':
+            case '-':
+            case '*':
+            case '/':
+                return {token: new Operator(rest[0]), rest: rest.substr(1)};
+            default:
+                return (() => {
+                    const match = /\W/.exec(rest);
+                    const pos = match ? match.index : rest.length;
+                    return {token: new Literal(rest.substr(0, pos)), rest: rest.substr(pos)};
+                })();
+        }
+    }
+
+    function expr() {
+
+    }
+
+    function Literal(value) {
+        this.value = value;
+    }
+
+    function Operator(value) {
+        function sub(l, r) {
+            const sub = l.substr(l.length - r.length);
+            return sub === r ? l.substr(0, l.length - r.length) : l;
+        }
+
+        function mul(l, r) {
+            let result = [];
+            for (let i = 0; i < Math.max(l.length, r.length); i++) {
+                if (l[i]) result.push(l[i]);
+                if (r[i]) result.push(r[i]);
+            }
+            return result.join('');
+        }
+
+        function dev(l, r) {
+            const result = [];
+            for (let i = 0; i < l.length; i++) {
+                if (i % 2 === 1) {
+                    if (l[i] !== r[(i - 1) / 2]) return l;
+                } else {
+                    result.push(l[i]);
+                }
+            }
+            return result.join('');
+        }
+
+        this.value = value;
+        this.priority = ['*', '/'].indexOf(value) > -1 ? 2 : 1;
+        this.eval = (r, l) => {
+            switch (value) {
+                case '+':
+                    return new Literal(l.value + r.value);
+                case '-':
+                    return new Literal(sub(l.value, r.value));
+                case '*':
+                    return new Literal(mul(l.value, r.value));
+                case '/':
+                    return new Literal(dev(l.value, r.value));
+            }
+        }
+    }
+
+    function OpenBracket() {
+        this.priority = 0;
+    }
+
+    function CloseBracket() {
+        this.priority = 0;
+    }
+
+    function Node(token, left, right) {
+        this.token = token;
+        this.left = left;
+        this.right = right;
+    }
+</script>
+</body>
+</html>
